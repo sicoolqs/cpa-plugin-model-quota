@@ -1,0 +1,12 @@
+*.exe
+*.dll
+*.so
+*.dylib
+*.h
+*.zip
+*.tar.gz
+dist/
+bin/
+artifacts/
+.DS_Store
+*.log

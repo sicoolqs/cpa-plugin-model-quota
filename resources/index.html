@@ -1,0 +1,543 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>大模型额度与余额查询</title>
+<style>
+  :root {
+    color-scheme: light dark;
+    --bg-page: #f6f7fb;
+    --bg-card: #ffffff;
+    --text-primary: #1e232d;
+    --text-secondary: #5a6272;
+    --text-tertiary: #8c95a6;
+    --border-color: #e4e7ee;
+    --border-hover: #c9d2e4;
+    --shadow-card: 0 2px 8px rgba(35, 45, 65, 0.04), 0 1px 2px rgba(35, 45, 65, 0.02);
+    --shadow-hover: 0 4px 16px rgba(35, 45, 65, 0.08);
+    --track-bg: #edf0f5;
+    --fill-normal: #3b66f5;
+    --fill-warn: #eab308;
+    --fill-danger: #ef4444;
+    --badge-bg: #eef2ff;
+    --badge-text: #3b66f5;
+    --badge-success-bg: #ecfdf5;
+    --badge-success-text: #059669;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg-page: #16181d;
+      --bg-card: #20222a;
+      --text-primary: #f0f2f7;
+      --text-secondary: #9da6b8;
+      --text-tertiary: #6b7485;
+      --border-color: #2e323e;
+      --border-hover: #454b5c;
+      --shadow-card: 0 2px 8px rgba(0, 0, 0, 0.2);
+      --shadow-hover: 0 4px 16px rgba(0, 0, 0, 0.35);
+      --track-bg: #2d313d;
+      --fill-normal: #4f78fe;
+      --fill-warn: #fbbf24;
+      --fill-danger: #f87171;
+      --badge-bg: #272d42;
+      --badge-text: #7094fe;
+      --badge-success-bg: #1c3329;
+      --badge-success-text: #34d399;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    padding: 20px 24px;
+    background: var(--bg-page);
+    color: var(--text-primary);
+    font: 14px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", "Microsoft YaHei", sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  .app-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 20px;
+    padding-bottom: 14px;
+    border-bottom: 1px solid var(--border-color);
+  }
+  .app-title-group {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .app-title {
+    font-size: 18px;
+    font-weight: 600;
+    margin: 0;
+  }
+  .app-subtitle {
+    font-size: 12px;
+    color: var(--text-tertiary);
+    background: var(--track-bg);
+    padding: 2px 8px;
+    border-radius: 6px;
+  }
+  .app-actions {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .fetch-time {
+    color: var(--text-tertiary);
+    font-size: 12px;
+  }
+  button.btn-refresh {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: var(--bg-card);
+    color: var(--text-primary);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: 7px 14px;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.03);
+    transition: all .2s;
+  }
+  button.btn-refresh:hover:not(:disabled) {
+    border-color: var(--fill-normal);
+    color: var(--fill-normal);
+    box-shadow: 0 2px 6px rgba(59, 102, 245, 0.15);
+  }
+  button.btn-refresh:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+  .spin {
+    animation: rotate 1s linear infinite;
+  }
+  @keyframes rotate { 100% { transform: rotate(360deg); } }
+
+  .provider-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+    gap: 16px;
+    align-items: stretch;
+  }
+  .provider-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: 14px;
+    padding: 18px;
+    box-shadow: var(--shadow-card);
+    transition: all 0.25s ease;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+  .provider-card:hover {
+    border-color: var(--border-hover);
+    box-shadow: var(--shadow-hover);
+  }
+  .card-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding-bottom: 12px;
+    border-bottom: 1px solid var(--border-color);
+  }
+  .provider-info {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .provider-logo-box {
+    width: 36px;
+    height: 36px;
+    border-radius: 10px;
+    background: var(--track-bg);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+  .provider-names {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+  .provider-name {
+    font-size: 15px;
+    font-weight: 600;
+    line-height: 1.2;
+  }
+  .provider-tagline {
+    font-size: 12px;
+    color: var(--text-tertiary);
+  }
+  .status-badge {
+    font-size: 12px;
+    font-weight: 500;
+    padding: 3px 8px;
+    border-radius: 6px;
+    background: var(--badge-success-bg);
+    color: var(--badge-success-text);
+  }
+  .status-badge.plan {
+    background: var(--badge-bg);
+    color: var(--badge-text);
+  }
+
+  .quota-rows-container {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  .quota-row {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 10px 12px;
+    background: var(--bg-page);
+    border: 1px solid var(--border-color);
+    border-radius: 10px;
+  }
+  .quota-row-top {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+  }
+  .quota-row-label {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text-primary);
+  }
+  .quota-row-value {
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--fill-normal);
+  }
+  .quota-row-value.warn { color: var(--fill-warn); }
+  .quota-row-value.danger { color: var(--fill-danger); }
+  .quota-progress-track {
+    width: 100%;
+    height: 6px;
+    border-radius: 999px;
+    background: var(--track-bg);
+    overflow: hidden;
+  }
+  .quota-progress-fill {
+    height: 100%;
+    border-radius: 999px;
+    background: var(--fill-normal);
+    transition: width .4s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  .quota-progress-fill.warn { background: var(--fill-warn); }
+  .quota-progress-fill.danger { background: var(--fill-danger); }
+  .quota-row-meta {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-size: 11px;
+    color: var(--text-tertiary);
+  }
+  .quota-reset-time {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+
+  .balance-display-block {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 16px 14px;
+    background: var(--bg-page);
+    border: 1px solid var(--border-color);
+    border-radius: 10px;
+  }
+  .balance-amount-row {
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+  }
+  .balance-currency {
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--text-secondary);
+  }
+  .balance-number {
+    font-size: 28px;
+    font-weight: 700;
+    letter-spacing: -0.5px;
+    color: #10b981;
+  }
+  .balance-meta {
+    font-size: 12px;
+    color: var(--text-secondary);
+  }
+
+  .error-box {
+    background: #fef2f2;
+    border: 1px solid #fecaca;
+    color: #dc2626;
+    border-radius: 10px;
+    padding: 12px 14px;
+    font-size: 13px;
+    margin-bottom: 16px;
+    white-space: pre-wrap;
+  }
+  @media (prefers-color-scheme: dark) {
+    .error-box {
+      background: #2a1b1b;
+      border-color: #5c2727;
+      color: #f87171;
+    }
+  }
+  .empty-state {
+    text-align: center;
+    padding: 60px 0;
+    color: var(--text-tertiary);
+  }
+</style>
+</head>
+<body>
+
+<header class="app-header">
+  <div class="app-title-group">
+    <h1 class="app-title">大模型额度与余额查询</h1>
+    <span class="app-subtitle">多供应商额度监控</span>
+  </div>
+  <div class="app-actions">
+    <span class="fetch-time" id="fetch-time"></span>
+    <button id="btn-refresh" class="btn-refresh" onclick="refresh()">
+      <svg id="refresh-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
+      <span>刷新</span>
+    </button>
+  </div>
+</header>
+
+<div id="error-message" class="error-box" style="display: none;"></div>
+<div id="provider-container" class="provider-grid"></div>
+<div id="empty-state" class="empty-state" style="display: none;">正在获取数据...</div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+
+// 官方 SVG LOGO 定义
+const ICONS = {
+  glm: `<svg viewBox="0 0 22 24" width="22" height="24" fill="none" xmlns="http://www.w3.org/2000/svg">
+<defs>
+<linearGradient id="glm_p0" x1="9.93" y1="0.56" x2="20.46" y2="7.68" gradientUnits="userSpaceOnUse"><stop stop-color="#988EFF"/><stop offset="1" stop-color="#2153DD"/></linearGradient>
+<linearGradient id="glm_p1" x1="9.35" y1="21.24" x2="-1.57" y2="11.42" gradientUnits="userSpaceOnUse"><stop stop-color="#8EAEFF"/><stop offset="1" stop-color="#2199DD"/></linearGradient>
+<linearGradient id="glm_p2" x1="1.28" y1="11.79" x2="9.87" y2="-0.12" gradientUnits="userSpaceOnUse"><stop stop-color="#988EFF"/><stop offset="1" stop-color="#2153DD"/></linearGradient>
+<linearGradient id="glm_p3" x1="21.05" y1="11.3" x2="10.77" y2="23.8" gradientUnits="userSpaceOnUse"><stop stop-color="#8EAEFF"/><stop offset="1" stop-color="#2199DD"/></linearGradient>
+</defs>
+<path d="M21.05 11.79V5.91a.06.06 0 00-.02-.04L10.55.01A.06.06 0 0010.53 0v2.46c0 4.77 3.98 9.32 8.9 9.32h1.62z" fill="url(#glm_p0)"/>
+<path d="M0 11.79v6.08a.06.06 0 00.02.04l10.48 6.08a.06.06 0 00.03.01v-2.54c0-4.94-3.99-9.66-8.9-9.66-.1 0-.2 0-.29 0H0z" fill="url(#glm_p1)"/>
+<path d="M0 11.79V5.91a.06.06 0 01.02-.04L10.5.01A.06.06 0 0110.53 0v2.46c0 4.77-3.99 9.32-8.9 9.32h-.29H0z" fill="url(#glm_p2)"/>
+<path d="M21.05 11.79v6.08a.06.06 0 01-.02.04L10.55 24a.06.06 0 01-.02 0v-2.55c0-4.94 3.98-9.66 8.9-9.66h.29h1.33z" fill="url(#glm_p3)"/>
+<path d="M10.53 2.46c0 4.77 3.98 9.32 8.9 9.32l-.3.01h.3c-4.92 0-8.9 4.72-8.9 9.66 0-4.9-3.92-9.58-8.77-9.66H1.9c-.05 0-.11 0-.17 0 4.86-.08 8.78-4.6 8.8-9.33z" fill="#F7F8FA"/>
+</svg>`,
+
+  deepseek: `<svg viewBox="0 0 24 24" width="22" height="22" xmlns="http://www.w3.org/2000/svg">
+<path d="M23.748 4.482c-.254-.124-.364.113-.512.234-.051.039-.094.09-.137.136-.372.397-.806.657-1.373.626-.829-.046-1.537.214-2.163.848-.133-.782-.575-1.248-1.247-1.548-.352-.156-.708-.311-.955-.65-.172-.241-.219-.51-.305-.774-.055-.16-.11-.323-.293-.35-.2-.031-.278.136-.356.276-.313.572-.434 1.202-.422 1.84.027 1.436.633 2.58 1.838 3.393.137.093.172.187.129.323-.082.28-.18.552-.266.833-.055.179-.137.217-.329.14a5.526 5.526 0 01-1.736-1.18c-.857-.828-1.631-1.742-2.597-2.458a11.365 11.365 0 00-.689-.471c-.985-.957.13-1.743.388-1.836.27-.098.093-.432-.779-.428-.872.004-1.67.295-2.687.684a3.055 3.055 0 01-.465.137 9.597 9.597 0 00-2.883-.102c-1.885.21-3.39 1.102-4.497 2.623C.082 8.606-.231 10.684.152 12.85c.403 2.284 1.569 4.175 3.36 5.653 1.858 1.533 3.997 2.284 6.438 2.14 1.482-.085 3.133-.284 4.994-1.86.47.234.962.327 1.78.397.63.059 1.236-.03 1.705-.128.735-.156.684-.837.419-.961-2.155-1.004-1.682-.595-2.113-.926 1.096-1.296 2.746-2.642 3.392-7.003.05-.347.007-.565 0-.845-.004-.17.035-.237.23-.256a4.173 4.173 0 001.545-.475c1.396-.763 1.96-2.015 2.093-3.517.02-.23-.004-.467-.247-.588zM11.581 18c-2.089-1.642-3.102-2.183-3.52-2.16-.392.024-.321.471-.235.763.09.288.207.486.371.739.114.167.192.416-.113.603-.673.416-1.842-.14-1.897-.167-1.361-.802-2.5-1.86-3.301-3.307-.774-1.393-1.224-2.887-1.298-4.482-.02-.386.093-.522.477-.592a4.696 4.696 0 011.529-.039c2.132.312 3.946 1.265 5.468 2.774.868.86 1.525 1.887 2.202 2.891.72 1.066 1.494 2.082 2.48 2.914.348.292.625.514.891.677-.802.09-2.14.11-3.054-.614zm1-6.44a.306.306 0 01.415-.287.302.302 0 01.2.288.306.306 0 01-.31.307.303.303 0 01-.304-.308zm3.11 1.596c-.2.081-.399.151-.59.16a1.245 1.245 0 01-.798-.254c-.274-.23-.47-.358-.552-.758a1.73 1.73 0 01.016-.588c.07-.327-.008-.537-.239-.727-.187-.156-.426-.199-.688-.199a.559.559 0 01-.254-.078c-.11-.054-.2-.19-.114-.358.028-.054.16-.186.192-.21.356-.202.767-.136 1.146.016.352.144.618.408 1.001.782.391.451.462.576.685.914.176.265.336.537.445.848.067.195-.019.354-.25.452z" fill="#4D6BFE"/>
+</svg>`
+};
+
+function formatRelativeTime(date) {
+  const diffMs = date.getTime() - Date.now();
+  if (diffMs <= 0) return '已到重置时间';
+  const totalMin = Math.ceil(diffMs / 60000);
+  if (totalMin < 60) return totalMin + ' 分钟后';
+  const hours = Math.floor(totalMin / 60);
+  const min = totalMin % 60;
+  if (hours < 24) return min > 0 ? `${hours}小时${min}分后` : `${hours}小时后`;
+  const days = Math.floor(hours / 24);
+  const restH = hours % 24;
+  return restH > 0 ? `${days}天${restH}小时后` : `${days}天后`;
+}
+
+function render(report) {
+  $('fetch-time').textContent = '更新于 ' + new Date(report.fetched_at_ms).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  const container = $('provider-container');
+  container.innerHTML = '';
+
+  const entries = report.entries || [];
+  $('empty-state').style.display = entries.length === 0 ? 'block' : 'none';
+
+  // 1. 按 provider 分组
+  const groups = {};
+  for (const entry of entries) {
+    if (!groups[entry.provider]) groups[entry.provider] = [];
+    groups[entry.provider].push(entry);
+  }
+
+  // 2. 依次渲染各个提供商卡片
+  for (const [provider, items] of Object.entries(groups)) {
+    const card = document.createElement('div');
+    card.className = 'provider-card';
+
+    // Header 部分
+    const header = document.createElement('div');
+    header.className = 'card-header';
+
+    const info = document.createElement('div');
+    info.className = 'provider-info';
+
+    const logoBox = document.createElement('div');
+    logoBox.className = 'provider-logo-box';
+    logoBox.innerHTML = ICONS[provider] || `<span style="font-weight:700">${provider.toUpperCase()}</span>`;
+    info.appendChild(logoBox);
+
+    const names = document.createElement('div');
+    names.className = 'provider-names';
+
+    const title = document.createElement('div');
+    title.className = 'provider-name';
+    title.textContent = provider === 'glm' ? '智谱 GLM' : (provider === 'deepseek' ? 'DeepSeek' : provider.toUpperCase());
+    names.appendChild(title);
+
+    const tagline = document.createElement('div');
+    tagline.className = 'provider-tagline';
+    tagline.textContent = provider === 'glm' ? 'BigModel Coding Plan' : '官方账户余额';
+    names.appendChild(tagline);
+
+    info.appendChild(names);
+    header.appendChild(info);
+
+    // 状态或套餐 badge
+    const badge = document.createElement('span');
+    badge.className = 'status-badge';
+    if (provider === 'glm') {
+      const planItem = items.find(i => i.detail && i.detail.includes('套餐'));
+      badge.className = 'status-badge plan';
+      badge.textContent = planItem ? planItem.detail.replace('套餐: ', '').toUpperCase() : 'Coding Plan';
+    } else {
+      badge.textContent = '正常可用';
+    }
+    header.appendChild(badge);
+    card.appendChild(header);
+
+    // Body 部分：所有同提供商的条目聚合在同一个卡片内
+    if (provider === 'deepseek') {
+      // DeepSeek 余额特殊展示大字
+      for (const item of items) {
+        const block = document.createElement('div');
+        block.className = 'balance-display-block';
+
+        const row = document.createElement('div');
+        row.className = 'balance-amount-row';
+        row.innerHTML = `<span class="balance-currency">¥</span><span class="balance-number">${item.remaining}</span>`;
+        block.appendChild(row);
+
+        const meta = document.createElement('div');
+        meta.className = 'balance-meta';
+        meta.textContent = item.detail || '账户余额 · 人民币 CNY';
+        block.appendChild(meta);
+
+        card.appendChild(block);
+      }
+    } else {
+      // 进度条型（如 GLM 的 5小时、周额、MCP）
+      const rowsBox = document.createElement('div');
+      rowsBox.className = 'quota-rows-container';
+
+      for (const item of items) {
+        const row = document.createElement('div');
+        row.className = 'quota-row';
+
+        const top = document.createElement('div');
+        top.className = 'quota-row-top';
+
+        const label = document.createElement('span');
+        label.className = 'quota-row-label';
+        label.textContent = item.label;
+        top.appendChild(label);
+
+        const val = document.createElement('span');
+        val.className = 'quota-row-value';
+        val.textContent = item.remaining || (item.used_percent != null ? Math.round(100 - item.used_percent) + '%' : '—');
+        if (item.used_percent != null) {
+          if (item.used_percent >= 90) val.className += ' danger';
+          else if (item.used_percent >= 70) val.className += ' warn';
+        }
+        top.appendChild(val);
+        row.appendChild(top);
+
+        // 如果有百分比或使用量，展示进度条
+        if (item.used_percent != null) {
+          const track = document.createElement('div');
+          track.className = 'quota-progress-track';
+          const fill = document.createElement('div');
+          fill.className = 'quota-progress-fill';
+          if (item.used_percent >= 90) fill.className += ' danger';
+          else if (item.used_percent >= 70) fill.className += ' warn';
+          fill.style.width = Math.min(100, Math.max(0, item.used_percent)) + '%';
+          track.appendChild(fill);
+          row.appendChild(track);
+        }
+
+        // 底部重置时间或详情
+        if (item.reset_at_ms > 0) {
+          const meta = document.createElement('div');
+          meta.className = 'quota-row-meta';
+          const at = new Date(item.reset_at_ms);
+          const timeStr = at.toLocaleTimeString([], { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
+          meta.innerHTML = `<span class="quota-reset-time"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg> 重置于 ${timeStr}</span><span>${formatRelativeTime(at)}</span>`;
+          row.appendChild(meta);
+        } else if (item.detail && provider !== 'glm') {
+          const meta = document.createElement('div');
+          meta.className = 'quota-row-meta';
+          meta.textContent = item.detail;
+          row.appendChild(meta);
+        }
+
+        rowsBox.appendChild(row);
+      }
+      card.appendChild(rowsBox);
+    }
+
+    container.appendChild(card);
+  }
+
+  // 错误信息展示
+  const errors = report.errors || {};
+  const errLines = Object.entries(errors).map(([p, m]) => (p === 'glm' ? '智谱 GLM' : (p === 'deepseek' ? 'DeepSeek' : p)) + ': ' + m);
+  if (errLines.length > 0) {
+    $('error-message').style.display = 'block';
+    $('error-message').textContent = errLines.join('\n');
+  } else {
+    $('error-message').style.display = 'none';
+  }
+}
+
+async function refresh() {
+  const btn = $('btn-refresh');
+  const icon = $('refresh-icon');
+  btn.disabled = true;
+  icon.classList.add('spin');
+  $('error-message').style.display = 'none';
+
+  try {
+    // 采用无管理密钥的同源资源路由直接查询
+    const resp = await fetch('query', { method: 'GET', headers: { 'Accept': 'application/json' } });
+    if (!resp.ok) {
+      throw new Error(`查询请求失败 (HTTP ${resp.status})`);
+    }
+    const data = await resp.json();
+    render(data);
+  } catch (err) {
+    $('error-message').style.display = 'block';
+    $('error-message').textContent = '获取额度数据失败: ' + (err.message || err);
+  } finally {
+    btn.disabled = false;
+    icon.classList.remove('spin');
+  }
+}
+
+// 页面加载即自动查询
+refresh();
+</script>
+</body>
+</html>
