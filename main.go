@@ -194,6 +194,7 @@ func registrationPayload() map[string]any {
 			"Version":          pluginVersion,
 			"Author":           "ZRZ-0805",
 			"GitHubRepository": "https://github.com/ZRZ-0805/cpa-plugin-model-quota",
+			"Logo":             "https://raw.githubusercontent.com/ZRZ-0805/cpa-plugin-model-quota/main/logo.svg",
 			"Description":      "实时查询智谱 GLM Coding Plan 用量与 DeepSeek 账户余额，支持同供应商聚合展示、重置倒计时与官方 LOGO。 / Real-time quota and balance tracking for GLM Coding Plan and DeepSeek.",
 			"ConfigFields": []map[string]any{
 				{
