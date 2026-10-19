@@ -77,7 +77,7 @@ var resourceFS embed.FS
 
 const (
 	pluginID      = "model-quota"
-	pluginVersion = "0.4.0"
+	pluginVersion = "0.4.1"
 	// panelPath 作为静态资源路由注册 (/v0/resource/plugins/model-quota/panel)：仅提供无状态静态 UI。
 	// queryPath 作为受保护的管理路由注册 (/v0/management/plugins/model-quota/query)：强制要求管理密钥鉴权。
 	queryPath = "/plugins/model-quota/query"
@@ -165,6 +165,9 @@ func handleMethod(method string, request []byte) ([]byte, error) {
 		})
 	case "management.handle":
 		return handleManagement(request)
+	case "plugin.quiesce":
+		// 宿主重载/卸载前的优雅停机探测：插件无在途请求需要等待，直接确认即可。
+		return okEnvelope(struct{}{})
 	default:
 		return errorEnvelope("unknown_method", "unknown method: "+method), nil
 	}
