@@ -44,6 +44,45 @@
 
 1. 从 [Releases](https://github.com/ZRZ-0805/cpa-plugin-model-quota/releases) 下载适合您操作系统的 ZIP 压缩包（如 `model-quota_0.3.0_windows_amd64.zip`）。
 2. 解压并将动态库（Windows 为 `model-quota.dll`，Linux 为 `model-quota.so`，macOS 为 `model-quota.dylib`）放入内核的 `plugins/<GOOS>/<GOARCH>/` 或 `plugins/` 目录。
+
+   **实际部署目录示例**（按您的运行环境任选其一）：
+
+   ```text
+   # Linux 服务器 / Docker（amd64，如 CPA 官方镜像默认路径）
+   /CLIProxyAPI/
+   └── plugins/
+       └── linux/
+           └── amd64/
+               └── model-quota.so        # Linux x64
+
+   # Linux ARM64（如树莓派、ARM 云主机）
+   /CLIProxyAPI/
+   └── plugins/
+       └── linux/
+           └── arm64/
+               └── model-quota.so
+
+   # Windows（本机直接运行）
+   CLIProxyAPI\
+   └── plugins\
+       └── windows\
+           └── amd64\
+               └── model-quota.dll       # Windows x64
+
+   # macOS Apple Silicon
+   /Applications/CLIProxyAPI/
+   └── plugins/
+       └── darwin/
+           └── arm64/
+               └── model-quota.dylib
+
+   # 扁平目录（不按平台分层，内核同样可发现）
+   /CLIProxyAPI/
+   └── plugins/
+       └── model-quota.so
+   ```
+
+   > 💡 注意：目录名使用 Go 的平台标识——`linux` / `windows` / `darwin`（macOS），而非 `macos`；Linux 产物请选择与您容器/系统 libc 匹配的版本（glibc 或 musl）。
 3. 在 `config.yaml` 中配置启用：
    ```yaml
    plugins:
