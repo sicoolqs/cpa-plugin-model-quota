@@ -64,3 +64,32 @@ $text = [System.Text.Encoding]::ASCII.GetString($bytes)
 $env:HTTP_PROXY = "http://127.0.0.1:7890"; $env:HTTPS_PROXY = "http://127.0.0.1:7890"
 git push origin main
 ```
+
+## CPA 版本适配与升级检查清单
+
+本插件基于 CLIProxyAPI v8 插件体系（审计基线：`router-for-me/CLIProxyAPI@main` commit `2422c6b`，v8.0.32）。适配新版 CPA 时按本清单重跑合规审计。
+
+### 关于 `/v0/management` 的「废弃」注记（不要误读）
+
+CPA 仓库 `AGENTS.md` 声称 `/v0/management` 已废弃——那**仅针对内核自身管理端点的维护策略**（v8 新功能只进 `/v8/management`，v0 冻结只修编译错误），不是移除。官方文档 `docs/management-api-v8.md` 明确 "The existing `/v0/management` API remains supported"。
+
+而**插件 Management API** 虽挂在同一前缀下，但属于 `internal/pluginhost` 子系统，是活跃维护的：
+
+- `pluginhost/management.go` 的 `managementBasePath = "/v0/management"` 仍是插件路由注册的现行常量
+- v8 的插件商店、插件配置（`/plugins/:id/config`）、插件额度（`/plugins/:id/quota`）端点全部挂在 `/v0/management` 组下
+- 官方示例 `examples/plugin/management-api` 即此模式
+
+**结论：插件路由继续挂 `/v0/management` 是正确且安全的。** 若未来 CPA 官方迁移插件路由前缀，本插件只需改两处：`main.go` 的 `matchPath` 前缀列表 + `resources/index.html` 里面板 `fetch` 的请求路径字符串。
+
+### 升级新版 CPA 时的审计项
+
+1. `sdk/pluginabi/types.go`：核对 `ABIVersion`（当前 1）与 `SchemaVersion`（当前 6）是否变化；若变化需同步 `main.go` 的 `cliproxy_plugin_init` 与 `registrationPayload`
+2. `internal/pluginhost/loader_*.go`：核对 C ABI 结构体与 `cliproxy_plugin_init` 符号名是否变化
+3. `internal/pluginhost/rpc_schema.go`：核对方法名（`plugin.register` / `management.register` / `management.handle` / `host.http.*`）与 JSON 字段名（rpc 外壳小写 tag、pluginapi 结构体大写无 tag）是否变化
+4. `internal/api/server_management.go`：确认插件路由的挂载与鉴权方式是否迁移
+5. 关注新增能力是否值得采用：如 `quota_provider`（注意：其凭据模型绑定 CPA auth 体系，本插件的配置式 API Key 模型不匹配，宿主不会为其发起 `quota.fetch`，暂不采用——详见 2026-10 合规审计记录）
+
+### 已知行为差异（勿重复排查）
+
+- `host.http.do` 的请求体**没有 timeout 字段**，`timeout_ms` 会被宿主静默忽略。真实超时依赖 `host.http.operation_open` + 请求携带 `operation_id` + 超时后 `host.http.cancel`（已在 `hostbridge.go` 实现，旧版宿主自动降级为不可取消请求）
+- `plugin.quiesce` 已显式处理（返回空成功信封）；即使不处理，宿主对含 "unknown method" 的错误信封也仅记 Debug 日志（`host.go` 的 `quiesceUnsupported`）
