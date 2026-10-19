@@ -29,6 +29,7 @@
 |---|---|---|
 | **智谱 GLM** | 5 小时额度比例、每周额度比例、MCP 每月调用、套餐档位 (Lite/Pro 等)、下次重置时间 | `https://open.bigmodel.cn/api/monitor/usage/quota/limit` |
 | **DeepSeek** | 账户总余额、币种、可用状态 | `https://api.deepseek.com/user/balance` |
+| **OpenCode Go** | 滚动 (5 小时)/每周/每月额度比例与重置时间 | `https://opencode.ai/zen/go/v1/usage` |
 | *更多供应商* | *架构高度模块化，持续拓展中* | *统一接口抽象* |
 
 ### 🚀 安装与使用
@@ -54,6 +55,7 @@
          priority: 1
          glm_api_key: "你的智谱API密钥"
          deepseek_api_key: "你的DeepSeek密钥"
+         opencode_api_key: "你的OpenCode密钥"
    ```
 
 ---
@@ -64,7 +66,7 @@
 
 **Model Quota (`model-quota`)** is an official-compliant native dynamic library plugin for [CLIProxyAPI](https://github.com/router-for-me/CLIProxyAPI) and [EasyCLIProxyAPI](https://github.com/router-for-me/EasyCLIProxyAPI).
 
-It provides an intuitive, consolidated dashboard to monitor your AI provider accounts, including GLM Coding Plan quotas, 5-hour/weekly usage progress, reset countdowns, and DeepSeek balances.
+It provides an intuitive, consolidated dashboard to monitor your AI provider accounts, including GLM Coding Plan quotas, 5-hour/weekly usage progress, reset countdowns, DeepSeek balances, and OpenCode Go plan usage.
 
 ### ✨ Features
 

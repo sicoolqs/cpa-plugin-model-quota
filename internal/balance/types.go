@@ -51,6 +51,25 @@ type GLMLimit struct {
 	NextResetTime int64   `json:"nextResetTime"`
 }
 
+// OpenCodeUsageResponse 对应 OpenCode Zen Go /zen/go/v1/usage 的返回结构。
+type OpenCodeUsageResponse struct {
+	Usage OpenCodeUsage `json:"usage"`
+}
+
+// OpenCodeUsage 是 OpenCode Go 套餐的三个额度窗口。
+type OpenCodeUsage struct {
+	Rolling OpenCodeWindow `json:"rolling"`
+	Weekly  OpenCodeWindow `json:"weekly"`
+	Monthly OpenCodeWindow `json:"monthly"`
+}
+
+// OpenCodeWindow 是一个滚动窗口的用量。ResetsAt 是 RFC3339 时间字符串。
+type OpenCodeWindow struct {
+	Status   string  `json:"status"`
+	Percent  float64 `json:"percent"`
+	ResetsAt string  `json:"resetsAt"`
+}
+
 // DeepSeekBalanceResponse 对应 DeepSeek /user/balance 的返回结构。
 type DeepSeekBalanceResponse struct {
 	IsAvailable  bool                     `json:"is_available"`

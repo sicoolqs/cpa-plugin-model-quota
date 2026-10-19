@@ -1,6 +1,6 @@
 // model-quota 是 CLIProxyAPI 的原生动态库插件：
-// 实时查询智谱 GLM Coding Plan 用量与 DeepSeek 账户余额，并通过插件自带
-// Management API 资源页面展示。请求统一经 host.http.do 宿主回调发出。
+// 实时查询智谱 GLM Coding Plan 用量、DeepSeek 账户余额与 OpenCode Zen Go 套餐
+// 用量，并通过插件自带 Management API 资源页面展示。请求统一经 host.http.do 宿主回调发出。
 package main
 
 /*
@@ -77,7 +77,7 @@ var resourceFS embed.FS
 
 const (
 	pluginID      = "model-quota"
-	pluginVersion = "0.3.0"
+	pluginVersion = "0.4.0"
 	// panelPath 作为静态资源路由注册 (/v0/resource/plugins/model-quota/panel)：仅提供无状态静态 UI。
 	// queryPath 作为受保护的管理路由注册 (/v0/management/plugins/model-quota/query)：强制要求管理密钥鉴权。
 	queryPath = "/plugins/model-quota/query"
@@ -198,7 +198,7 @@ func registrationPayload() map[string]any {
 			"Author":           "ZRZ-0805",
 			"GitHubRepository": "https://github.com/ZRZ-0805/cpa-plugin-model-quota",
 			"Logo":             "https://raw.githubusercontent.com/ZRZ-0805/cpa-plugin-model-quota/main/logo.svg",
-			"Description":      "实时查询智谱 GLM Coding Plan 用量与 DeepSeek 账户余额，支持同供应商聚合展示、重置倒计时与官方 LOGO。 / Real-time quota and balance tracking for GLM Coding Plan and DeepSeek.",
+			"Description":      "实时查询智谱 GLM Coding Plan 用量、DeepSeek 账户余额与 OpenCode Zen Go 套餐用量，支持同供应商聚合展示、重置倒计时与官方 LOGO。 / Real-time quota and balance tracking for GLM Coding Plan, DeepSeek and OpenCode Go.",
 			"ConfigFields": []map[string]any{
 				{
 					"Name":        "glm_api_key",
@@ -216,6 +216,11 @@ func registrationPayload() map[string]any {
 					"Name":        "deepseek_api_key",
 					"Type":        "string",
 					"Description": "DeepSeek 开放平台 API Key",
+				},
+				{
+					"Name":        "opencode_api_key",
+					"Type":        "string",
+					"Description": "OpenCode Zen Go 套餐 API Key",
 				},
 				{
 					"Name":        "timeout_seconds",
@@ -295,8 +300,16 @@ func handleQuery() ([]byte, error) {
 			report.Entries = append(report.Entries, entries...)
 		}
 	}
-	if cfg.GLMAPIKey == "" && cfg.DeepSeekAPIKey == "" {
-		report.Errors["config"] = "尚未配置 API Key：请在管理控制台的「插件」->「配置」中填写 glm_api_key 或 deepseek_api_key / Please configure API keys in plugin settings."
+	if cfg.OpenCodeAPIKey != "" {
+		entries, errQuery := balance.QueryOpenCode(client, cfg.OpenCodeEndpoint(), cfg.OpenCodeAPIKey, timeout)
+		if errQuery != nil {
+			report.Errors["opencode-go"] = errQuery.Error()
+		} else {
+			report.Entries = append(report.Entries, entries...)
+		}
+	}
+	if cfg.GLMAPIKey == "" && cfg.DeepSeekAPIKey == "" && cfg.OpenCodeAPIKey == "" {
+		report.Errors["config"] = "尚未配置 API Key：请在管理控制台的「插件」->「配置」中填写 glm_api_key、deepseek_api_key 或 opencode_api_key / Please configure API keys in plugin settings."
 	}
 	body, errMarshal := balance.MarshalResult(report)
 	if errMarshal != nil {

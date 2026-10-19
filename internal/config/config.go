@@ -15,6 +15,8 @@ type Config struct {
 	GLMRegion string `yaml:"glm_region"`
 	// DeepSeekAPIKey 是 DeepSeek 开放平台的 API Key。
 	DeepSeekAPIKey string `yaml:"deepseek_api_key"`
+	// OpenCodeAPIKey 是 OpenCode Zen Go 套餐的 API Key。
+	OpenCodeAPIKey string `yaml:"opencode_api_key"`
 	// TimeoutSeconds 是单次上游查询的超时秒数，0 表示使用默认值。
 	TimeoutSeconds int `yaml:"timeout_seconds"`
 }
@@ -46,6 +48,11 @@ func (c Config) GLMEndpoint() string {
 // DeepSeekEndpoint 返回 DeepSeek 余额查询接口地址。
 func (c Config) DeepSeekEndpoint() string {
 	return "https://api.deepseek.com/user/balance"
+}
+
+// OpenCodeEndpoint 返回 OpenCode Zen Go 用量查询接口地址。
+func (c Config) OpenCodeEndpoint() string {
+	return "https://opencode.ai/zen/go/v1/usage"
 }
 
 // Timeout 返回有效的查询超时秒数。

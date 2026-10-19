@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"time"
 )
 
 // ParseGLM 把智谱用量接口的响应体解析为归一化条目。
@@ -83,6 +84,64 @@ func ParseDeepSeek(body []byte) ([]Entry, error) {
 		})
 	}
 	return entries, nil
+}
+
+// ParseOpenCode 把 OpenCode Zen Go 用量接口的响应体解析为归一化条目。
+// usage 下固定含 rolling/weekly/monthly 三个窗口，按 5小时 → 每周 → 每月输出。
+func ParseOpenCode(body []byte) ([]Entry, error) {
+	var parsed OpenCodeUsageResponse
+	if errUnmarshal := json.Unmarshal(body, &parsed); errUnmarshal != nil {
+		return nil, fmt.Errorf("解析 OpenCode 响应失败: %w", errUnmarshal)
+	}
+	usage := parsed.Usage
+	windows := []struct {
+		label   string
+		window  OpenCodeWindow
+	}{
+		{"5小时额度", usage.Rolling},
+		{"每周额度", usage.Weekly},
+		{"每月额度", usage.Monthly},
+	}
+	if usage.Rolling.ResetsAt == "" && usage.Weekly.ResetsAt == "" && usage.Monthly.ResetsAt == "" &&
+		usage.Rolling.Percent == 0 && usage.Weekly.Percent == 0 && usage.Monthly.Percent == 0 {
+		return nil, fmt.Errorf("OpenCode 响应中没有额度数据")
+	}
+	entries := make([]Entry, 0, len(windows))
+	for _, item := range windows {
+		used := item.window.Percent
+		entries = append(entries, Entry{
+			Provider:    "opencode-go",
+			Label:       item.label,
+			UsedPercent: &used,
+			Remaining:   percentRemaining(used),
+			Detail:      openCodeStatusDetail(item.window.Status),
+			ResetAtMS:   parseRFC3339MS(item.window.ResetsAt),
+		})
+	}
+	return entries, nil
+}
+
+// openCodeStatusDetail 把非 ok 的窗口状态转换为展示文本；ok 返回空。
+func openCodeStatusDetail(status string) string {
+	switch strings.ToLower(strings.TrimSpace(status)) {
+	case "", "ok":
+		return ""
+	default:
+		return "状态: " + status
+	}
+}
+
+// parseRFC3339MS 把 RFC3339 时间字符串（如 2026-10-19T07:55:51.000Z）转为 Unix 毫秒。
+// 解析失败返回 0（未知）。
+func parseRFC3339MS(value string) int64 {
+	if value == "" {
+		return 0
+	}
+	parsed, errParse := time.Parse(time.RFC3339, value)
+	if errParse != nil {
+		return 0
+	}
+	return parsed.UnixMilli()
 }
 
 func percentRemaining(used float64) string {

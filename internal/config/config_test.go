@@ -24,6 +24,9 @@ func TestParseFields(t *testing.T) {
 	if parsed.GLMAPIKey != "key-1" || parsed.DeepSeekAPIKey != "key-2" {
 		t.Errorf("key 解析不符: %+v", parsed)
 	}
+	if parsed.OpenCodeEndpoint() != "https://opencode.ai/zen/go/v1/usage" {
+		t.Errorf("OpenCode 端点不符: %s", parsed.OpenCodeEndpoint())
+	}
 	if parsed.GLMEndpoint() != "https://api.z.ai/api/monitor/usage/quota/limit" {
 		t.Errorf("国际版端点不符: %s", parsed.GLMEndpoint())
 	}

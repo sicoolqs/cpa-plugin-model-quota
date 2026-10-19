@@ -50,6 +50,21 @@ func QueryDeepSeek(client HostClient, endpoint, apiKey string, timeout time.Dura
 	return ParseDeepSeek(body)
 }
 
+// QueryOpenCode 查询 OpenCode Zen Go 套餐用量并解析。
+func QueryOpenCode(client HostClient, endpoint, apiKey string, timeout time.Duration) ([]Entry, error) {
+	if apiKey == "" {
+		return nil, fmt.Errorf("未配置 opencode_api_key")
+	}
+	body, errDo := client.DoHTTP(endpoint, map[string][]string{
+		"Authorization": {"Bearer " + apiKey},
+		"Accept":        {"application/json"},
+	}, timeout)
+	if errDo != nil {
+		return nil, errDo
+	}
+	return ParseOpenCode(body)
+}
+
 // MarshalResult 把 Report 序列化为 management.handle 返回的 JSON 字节。
 func MarshalResult(report Report) ([]byte, error) {
 	return json.Marshal(report)
