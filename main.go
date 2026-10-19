@@ -77,10 +77,10 @@ var resourceFS embed.FS
 
 const (
 	pluginID      = "model-quota"
-	pluginVersion = "0.2.0"
-	// panelPath 和 queryPath 均作为资源路由注册：
-	// 浏览器打开插件面板后，页面可直接通过 GET query 获取数据，无需手动输入管理密钥。
-	queryPath = "/query"
+	pluginVersion = "0.3.0"
+	// panelPath 作为静态资源路由注册 (/v0/resource/plugins/model-quota/panel)：仅提供无状态静态 UI。
+	// queryPath 作为受保护的管理路由注册 (/v0/management/plugins/model-quota/query)：强制要求管理密钥鉴权。
+	queryPath = "/plugins/model-quota/query"
 	panelPath = "/panel"
 )
 
@@ -148,15 +148,18 @@ func handleMethod(method string, request []byte) ([]byte, error) {
 		return handleRegister(request)
 	case "management.register":
 		return okEnvelope(map[string]any{
+			"routes": []map[string]any{
+				{
+					"Method":      "GET",
+					"Path":        queryPath,
+					"Description": "查询各模型额度与余额（受管理密钥保护）",
+				},
+			},
 			"resources": []map[string]any{
 				{
 					"Path":        panelPath,
 					"Menu":        "额度查询",
-					"Description": "大模型额度与余额监控面板",
-				},
-				{
-					"Path":        queryPath,
-					"Description": "查询各模型额度与余额（资源路由无管理密钥限制）",
+					"Description": "大模型额度与余额监控面板（静态UI）",
 				},
 			},
 		})
@@ -200,7 +203,7 @@ func registrationPayload() map[string]any {
 				{
 					"Name":        "glm_api_key",
 					"Type":        "string",
-					"Description": "智谱开放平台 API Key（Coding Plan 套餐用户，可自动复用 API 接入配置）",
+					"Description": "智谱开放平台 API Key（Coding Plan 套餐用户）",
 				},
 				{
 					"Name":        "glm_region",
@@ -212,7 +215,7 @@ func registrationPayload() map[string]any {
 				{
 					"Name":        "deepseek_api_key",
 					"Type":        "string",
-					"Description": "DeepSeek 开放平台 API Key（可自动复用 API 接入配置）",
+					"Description": "DeepSeek 开放平台 API Key",
 				},
 				{
 					"Name":        "timeout_seconds",
@@ -269,9 +272,6 @@ func handleQuery() ([]byte, error) {
 	cfg := pluginStore.cfg
 	pluginStore.mu.RUnlock()
 
-	// 自动读取宿主 config.yaml：如果插件配置中未填 Key，自动复用「API接入」已配置的 Key！
-	cfg.AutoDiscoverAPIKeys()
-
 	timeout := time.Duration(cfg.Timeout()) * time.Second
 	client := hostClient{}
 	report := balance.Report{
@@ -296,7 +296,7 @@ func handleQuery() ([]byte, error) {
 		}
 	}
 	if cfg.GLMAPIKey == "" && cfg.DeepSeekAPIKey == "" {
-		report.Errors["config"] = "尚未配置任何 API Key：请在插件配置中填写，或在「API接入」页面配置对应的提供商"
+		report.Errors["config"] = "尚未配置 API Key：请在管理控制台的「插件」->「配置」中填写 glm_api_key 或 deepseek_api_key / Please configure API keys in plugin settings."
 	}
 	body, errMarshal := balance.MarshalResult(report)
 	if errMarshal != nil {

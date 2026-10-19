@@ -19,7 +19,8 @@
 - 📊 **同供应商深度聚合**：智谱 GLM 的 5 小时额度、每周额度、月度 MCP 调用次数全部整合于同一张卡片，清晰直观。
 - ⏳ **精确重置倒计时**：清晰显示下次额度重置的具体日期时间以及相对倒计时（如 `重置于 10/18 23:30 (2小时45分后)`）。
 - 🎨 **官方矢量 LOGO 与原生适配**：内联智谱 GLM 彩色几何渐变 LOGO 与 DeepSeek 蓝鲸 LOGO，完全适配 EasyCLIProxyAPI 的浅色与深色主题。
-- 🔑 **无感自动发现 Key**：自动从内核 `config.yaml`（即「API 接入」中已配置的模型供应商）读取已有的 API Key，无需在插件设置中重复繁琐粘贴。
+- 🔑 **标准插件配置支持**：API Key 通过官方生命周期配置钩子（`plugins.configs.model-quota`）安全传入，可在客户端界面配置，也可在配置文件中按需指定。
+- 🛡️ **严格遵循 CPA 路由安全规范**：静态界面挂载于资源路由，动态额度查询通过受管理密钥鉴权的管理路由执行，安全可靠。
 - ⚡ **零额外依赖**：纯静态资源全嵌入，原生 C ABI 交互，通过内核宿主回调（`host.http.do`）发起网络查询，完美复用本地代理设置。
 
 ### 📦 支持的供应商与指标
@@ -40,7 +41,7 @@
 
 #### 方式二：手动离线安装
 
-1. 从 [Releases](https://github.com/ZRZ-0805/cpa-plugin-model-quota/releases) 下载适合您操作系统的 ZIP 压缩包（如 `model-quota_0.2.0_windows_amd64.zip`）。
+1. 从 [Releases](https://github.com/ZRZ-0805/cpa-plugin-model-quota/releases) 下载适合您操作系统的 ZIP 压缩包（如 `model-quota_0.3.0_windows_amd64.zip`）。
 2. 解压并将动态库（Windows 为 `model-quota.dll`，Linux 为 `model-quota.so`，macOS 为 `model-quota.dylib`）放入内核的 `plugins/<GOOS>/<GOARCH>/` 或 `plugins/` 目录。
 3. 在 `config.yaml` 中配置启用：
    ```yaml
@@ -51,6 +52,8 @@
        model-quota:
          enabled: true
          priority: 1
+         glm_api_key: "你的智谱API密钥"
+         deepseek_api_key: "你的DeepSeek密钥"
    ```
 
 ---
@@ -68,7 +71,8 @@ It provides an intuitive, consolidated dashboard to monitor your AI provider acc
 - 📊 **Consolidated Provider View**: All limits for the same provider (e.g. GLM 5-hour limit, weekly limit, MCP calls) are grouped into a single card.
 - ⏳ **Reset Time Countdowns**: Live countdowns indicating when your quota window will replenish (e.g. `Resets at 23:30 (in 2h 45m)`).
 - 🎨 **Official Vector Logos & Dark Mode**: Inline SVG graphics for GLM and DeepSeek, automatically adapting to light and dark themes.
-- 🔑 **Automatic Key Discovery**: Automatically detects existing upstream keys configured in CLIProxyAPI's `config.yaml` (`api-keys`), eliminating redundant manual configuration.
+- 🔑 **Standard Plugin Configuration**: Upstream API keys are configured securely via standard plugin configurations (`plugins.configs.model-quota`).
+- 🛡️ **CPA Architecture Compliant**: Strictly adheres to CPA route boundary specifications. Dynamic queries are secured under `/v0/management/...`, and UI assets are cleanly served as static resources.
 - ⚡ **Zero External Dependencies**: Embedded UI resources, native C ABI invocation, and requests issued securely through host callbacks (`host.http.do`).
 
 ### 📄 License
