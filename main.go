@@ -77,7 +77,7 @@ var resourceFS embed.FS
 
 const (
 	pluginID      = "model-quota"
-	pluginVersion = "0.4.1"
+	pluginVersion = "0.4.2"
 	// panelPath 作为静态资源路由注册 (/v0/resource/plugins/model-quota/panel)：仅提供无状态静态 UI。
 	// queryPath 作为受保护的管理路由注册 (/v0/management/plugins/model-quota/query)：强制要求管理密钥鉴权。
 	queryPath = "/plugins/model-quota/query"
@@ -279,46 +279,71 @@ func handleQuery() ([]byte, error) {
 	pluginStore.mu.RLock()
 	cfg := pluginStore.cfg
 	pluginStore.mu.RUnlock()
-
-	timeout := time.Duration(cfg.Timeout()) * time.Second
-	client := hostClient{}
-	report := balance.Report{
-		Entries:     []balance.Entry{},
-		Errors:      map[string]string{},
-		FetchedAtMS: time.Now().UnixMilli(),
-	}
-	if cfg.GLMAPIKey != "" {
-		entries, errQuery := balance.QueryGLM(client, cfg.GLMEndpoint(), cfg.GLMAPIKey, timeout)
-		if errQuery != nil {
-			report.Errors["glm"] = errQuery.Error()
-		} else {
-			report.Entries = append(report.Entries, entries...)
-		}
-	}
-	if cfg.DeepSeekAPIKey != "" {
-		entries, errQuery := balance.QueryDeepSeek(client, cfg.DeepSeekEndpoint(), cfg.DeepSeekAPIKey, timeout)
-		if errQuery != nil {
-			report.Errors["deepseek"] = errQuery.Error()
-		} else {
-			report.Entries = append(report.Entries, entries...)
-		}
-	}
-	if cfg.OpenCodeAPIKey != "" {
-		entries, errQuery := balance.QueryOpenCode(client, cfg.OpenCodeEndpoint(), cfg.OpenCodeAPIKey, timeout)
-		if errQuery != nil {
-			report.Errors["opencode-go"] = errQuery.Error()
-		} else {
-			report.Entries = append(report.Entries, entries...)
-		}
-	}
-	if cfg.GLMAPIKey == "" && cfg.DeepSeekAPIKey == "" && cfg.OpenCodeAPIKey == "" {
-		report.Errors["config"] = "尚未配置 API Key：请在管理控制台的「插件」->「配置」中填写 glm_api_key、deepseek_api_key 或 opencode_api_key / Please configure API keys in plugin settings."
-	}
+	report := runQuotaQueries(hostClient{}, cfg, time.Duration(cfg.Timeout())*time.Second)
 	body, errMarshal := balance.MarshalResult(report)
 	if errMarshal != nil {
 		return errorEnvelope("marshal_error", errMarshal.Error()), nil
 	}
 	return managementJSON(http.StatusOK, json.RawMessage(body)), nil
+}
+
+// providerResult 保存单个供应商的并行查询结果。
+type providerResult struct {
+	key     string
+	entries []balance.Entry
+	err     error
+}
+
+// runQuotaQueries 并行查询全部已配置的供应商并聚合为 Report。
+// 三家供应商互相独立，并行执行使单项上游延迟不互相叠加；
+// 条目按 glm → deepseek → opencode-go 固定顺序排列。
+func runQuotaQueries(client balance.HostClient, cfg config.Config, timeout time.Duration) balance.Report {
+	report := balance.Report{Entries: []balance.Entry{}, Errors: map[string]string{}}
+	if cfg.GLMAPIKey == "" && cfg.DeepSeekAPIKey == "" && cfg.OpenCodeAPIKey == "" {
+		report.Errors["config"] = "尚未配置 API Key：请在管理控制台的「插件」->「配置」中填写 glm_api_key、deepseek_api_key 或 opencode_api_key / Please configure API keys in plugin settings."
+		report.FetchedAtMS = time.Now().UnixMilli()
+		return report
+	}
+	var glmRes, deepseekRes, opencodeRes providerResult
+	var wg sync.WaitGroup
+	if cfg.GLMAPIKey != "" {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			entries, errQuery := balance.QueryGLM(client, cfg.GLMEndpoint(), cfg.GLMAPIKey, timeout)
+			glmRes = providerResult{key: "glm", entries: entries, err: errQuery}
+		}()
+	}
+	if cfg.DeepSeekAPIKey != "" {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			entries, errQuery := balance.QueryDeepSeek(client, cfg.DeepSeekEndpoint(), cfg.DeepSeekAPIKey, timeout)
+			deepseekRes = providerResult{key: "deepseek", entries: entries, err: errQuery}
+		}()
+	}
+	if cfg.OpenCodeAPIKey != "" {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			entries, errQuery := balance.QueryOpenCode(client, cfg.OpenCodeEndpoint(), cfg.OpenCodeAPIKey, timeout)
+			opencodeRes = providerResult{key: "opencode-go", entries: entries, err: errQuery}
+		}()
+	}
+	wg.Wait()
+	// 时间戳在全部查询完成后取值，面板的「更新于」反映实际完成时刻。
+	report.FetchedAtMS = time.Now().UnixMilli()
+	for _, res := range []providerResult{glmRes, deepseekRes, opencodeRes} {
+		if res.key == "" {
+			continue // 该供应商未配置 API Key
+		}
+		if res.err != nil {
+			report.Errors[res.key] = res.err.Error()
+		} else {
+			report.Entries = append(report.Entries, res.entries...)
+		}
+	}
+	return report
 }
 
 func handleResourcePage() ([]byte, error) {
