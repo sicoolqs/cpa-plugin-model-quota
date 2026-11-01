@@ -67,7 +67,7 @@ git push origin main
 
 ## CPA 版本适配与升级检查清单
 
-本插件基于 CLIProxyAPI v8 插件体系（审计基线：`router-for-me/CLIProxyAPI@main` commit `2422c6b`，v8.0.32）。适配新版 CPA 时按本清单重跑合规审计。
+本插件基于 CLIProxyAPI v8 插件体系（最近合规审计：2026-11-02，基线 `router-for-me/CLIProxyAPI@main` commit `f7331b5`；历次审计：2026-10-19 `2422c6b` / v8.0.32、2026-10-31 `dbb7062`）。适配新版 CPA 时按本清单重跑合规审计。
 
 ### 关于 `/v0/management` 的「废弃」注记（不要误读）
 
@@ -83,7 +83,7 @@ CPA 仓库 `AGENTS.md` 声称 `/v0/management` 已废弃——那**仅针对内�
 
 ### 升级新版 CPA 时的审计项
 
-1. `sdk/pluginabi/types.go`：核对 `ABIVersion`（当前 1）与 `SchemaVersion`（当前 6）是否变化；若变化需同步 `main.go` 的 `cliproxy_plugin_init` 与 `registrationPayload`
+1. `sdk/pluginabi/types.go`：核对 `ABIVersion`（当前 1）与 `SchemaVersion`（当前 10；本插件声明 6，官方明确保留旧版本语义，`RawManagementResponse` 阈值仍为 6）是否变化；若变化需同步 `main.go` 的 `cliproxy_plugin_init` 与 `registrationPayload`
 2. `internal/pluginhost/loader_*.go`：核对 C ABI 结构体与 `cliproxy_plugin_init` 符号名是否变化
 3. `internal/pluginhost/rpc_schema.go`：核对方法名（`plugin.register` / `management.register` / `management.handle` / `host.http.*`）与 JSON 字段名（rpc 外壳小写 tag、pluginapi 结构体大写无 tag）是否变化
 4. `internal/api/server_management.go`：确认插件路由的挂载与鉴权方式是否迁移
