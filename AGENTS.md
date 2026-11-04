@@ -32,6 +32,14 @@ $env:CC = "D:\Work\zig\zig.exe cc -target x86_64-macos"    # Intel
 $env:CC = "D:\Work\zig\zig.exe cc -target aarch64-macos"   # Apple Silicon
 ```
 
+**CPU 基线说明**：CLIProxyAPI 官方要求发布型 c-shared 构建钉住基线指令集（`GOAMD64=v1 CGO_CFLAGS="-march=x86-64"`，防 CI runner 新默认指令集在老 CPU 上 SIGILL）——`scripts/ci-build.sh` 已按此实现（gcc/clang 链路）。**本地 zig 构建不要设置 `CGO_CFLAGS`**：zig cc 不识别 gcc 风格取值（实测报 `unknown CPU: 'x86'`），且 zig 的 `-target` 三元组本身就钉在基线 CPU（x86_64 v1），天然满足要求。
+
+### ⚠️ 关键约束：`cliproxy_plugin_init` / `shutdown` 必须保持无副作用
+
+自 CLIProxyAPI `dde469d`（2026-11-03）起，Linux 宿主在真实加载插件前会先启动**预检子进程**（preflight probe）：`dlopen` 插件副本 → dlsym `cliproxy_plugin_init` → 以**桩 host API**（`call` 恒返回错误码 1、`free_buffer` 空操作、`host_ctx` 为 NULL）调用 init → 返回 0 时再调用 `shutdown()` → 子进程退出后才在主进程正式加载。
+
+因此 `cliproxy_plugin_init` 与 `cliproxyPluginShutdown` **禁止**：发起宿主回调、启动 goroutine、做耗时初始化或任何依赖宿主可用性的操作。当前实现（仅保存指针 + 填充结构体）符合要求，修改时必须维持。
+
 ### ⚠️ 关键教训：glibc vs musl 必须与宿主镜像匹配
 
 - **默认用 glibc 目标（`x86_64-linux-gnu.2.17`）**：Debian/Ubuntu/CentOS 等主流镜像都是 glibc，运行时只认带版本号的 `libc.so.6`。
@@ -67,7 +75,7 @@ git push origin main
 
 ## CPA 版本适配与升级检查清单
 
-本插件基于 CLIProxyAPI v8 插件体系（最近合规审计：2026-11-02，基线 `router-for-me/CLIProxyAPI@main` commit `f7331b5`；历次审计：2026-10-19 `2422c6b` / v8.0.32、2026-10-31 `dbb7062`）。适配新版 CPA 时按本清单重跑合规审计。
+本插件基于 CLIProxyAPI v8 插件体系（最近合规审计：2026-11-04，基线 `router-for-me/CLIProxyAPI@main` commit `01b24f1`；历次审计：2026-11-02 `f7331b5`、2026-10-31 `dbb7062`、2026-10-19 `2422c6b` / v8.0.32）。适配新版 CPA 时按本清单重跑合规审计。
 
 ### 关于 `/v0/management` 的「废弃」注记（不要误读）
 
