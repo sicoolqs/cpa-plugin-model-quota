@@ -75,7 +75,7 @@ git push origin main
 
 ## CPA 版本适配与升级检查清单
 
-本插件基于 CLIProxyAPI v8 插件体系（最近合规审计：2026-11-04，基线 `router-for-me/CLIProxyAPI@main` commit `01b24f1`；历次审计：2026-11-02 `f7331b5`、2026-10-31 `dbb7062`、2026-10-19 `2422c6b` / v8.0.32）。适配新版 CPA 时按本清单重跑合规审计。
+本插件基于 CLIProxyAPI v8 插件体系（最近合规审计：2026-11-14，基线 `router-for-me/CLIProxyAPI@main` commit `1aaf56b`；历次审计：2026-11-04 `01b24f1`、2026-11-02 `f7331b5`、2026-10-31 `dbb7062`、2026-10-19 `2422c6b` / v8.0.32）。适配新版 CPA 时按本清单重跑合规审计。
 
 ### 关于 `/v0/management` 的「废弃」注记（不要误读）
 
@@ -101,3 +101,4 @@ CPA 仓库 `AGENTS.md` 声称 `/v0/management` 已废弃——那**仅针对内�
 
 - `host.http.do` 的请求体**没有 timeout 字段**，`timeout_ms` 会被宿主静默忽略。真实超时依赖 `host.http.operation_open` + 请求携带 `operation_id` + 超时后 `host.http.cancel`（已在 `hostbridge.go` 实现，旧版宿主自动降级为不可取消请求）
 - `plugin.quiesce` 已显式处理（返回空成功信封）；即使不处理，宿主对含 "unknown method" 的错误信封也仅记 Debug 日志（`host.go` 的 `quiesceUnsupported`）
+- `plugin.shutdown` 常量已加入 ABI（`MethodPluginShutdown`），但宿主（`1aaf56b`）尚无任何调用点，仅调用原生 `cliproxyPluginShutdown` 符号；插件已返回空成功信封做前向兼容

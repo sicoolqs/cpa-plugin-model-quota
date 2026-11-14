@@ -168,6 +168,9 @@ func handleMethod(method string, request []byte) ([]byte, error) {
 	case "plugin.quiesce":
 		// 宿主重载/卸载前的优雅停机探测：插件无在途请求需要等待，直接确认即可。
 		return okEnvelope(struct{}{})
+	case "plugin.shutdown":
+		// ABI 已定义该通知方法（宿主当前只调用原生 shutdown 符号），空实现做前向兼容。
+		return okEnvelope(struct{}{})
 	default:
 		return errorEnvelope("unknown_method", "unknown method: "+method), nil
 	}
