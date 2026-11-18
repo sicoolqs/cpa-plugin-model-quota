@@ -70,6 +70,7 @@ import (
 
 	"github.com/ZRZ-0805/cpa-plugin-model-quota/internal/balance"
 	"github.com/ZRZ-0805/cpa-plugin-model-quota/internal/config"
+	"github.com/router-for-me/CLIProxyAPI/v8/sdk/pluginabi"
 )
 
 //go:embed resources/index.html
@@ -77,11 +78,14 @@ var resourceFS embed.FS
 
 const (
 	pluginID      = "model-quota"
-	pluginVersion = "0.4.2"
+	pluginVersion = "0.4.3"
 	// panelPath 作为静态资源路由注册 (/v0/resource/plugins/model-quota/panel)：仅提供无状态静态 UI。
 	// queryPath 作为受保护的管理路由注册 (/v0/management/plugins/model-quota/query)：强制要求管理密钥鉴权。
 	queryPath = "/plugins/model-quota/query"
 	panelPath = "/panel"
+	// pluginSchemaVersion 声明插件所需的 RPC schema 语义：仅需 6（管理响应保留原始 JSON，
+	// 不做 HTML 转义）。刻意不跟随最新 SchemaVersion，避免启用本插件未使用的能力门控。
+	pluginSchemaVersion = pluginabi.SchemaVersionRawManagementResponse
 )
 
 // store 保存最近一次配置与缓存结果，management.handle 间共享。
@@ -101,7 +105,7 @@ func cliproxy_plugin_init(host *C.cliproxy_host_api, plugin *C.cliproxy_plugin_a
 		return 1
 	}
 	C.store_host_api(host)
-	plugin.abi_version = C.uint32_t(1)
+	plugin.abi_version = C.uint32_t(pluginabi.ABIVersion)
 	plugin.call = C.cliproxy_plugin_call_fn(C.cliproxyPluginCall)
 	plugin.free_buffer = C.cliproxy_plugin_free_fn(C.cliproxyPluginFree)
 	plugin.shutdown = C.cliproxy_plugin_shutdown_fn(C.cliproxyPluginShutdown)
@@ -144,9 +148,9 @@ func cliproxyPluginShutdown() {}
 
 func handleMethod(method string, request []byte) ([]byte, error) {
 	switch method {
-	case "plugin.register", "plugin.reconfigure":
+	case pluginabi.MethodPluginRegister, pluginabi.MethodPluginReconfigure:
 		return handleRegister(request)
-	case "management.register":
+	case pluginabi.MethodManagementRegister:
 		return okEnvelope(map[string]any{
 			"routes": []map[string]any{
 				{
@@ -163,12 +167,12 @@ func handleMethod(method string, request []byte) ([]byte, error) {
 				},
 			},
 		})
-	case "management.handle":
+	case pluginabi.MethodManagementHandle:
 		return handleManagement(request)
-	case "plugin.quiesce":
+	case pluginabi.MethodPluginQuiesce:
 		// 宿主重载/卸载前的优雅停机探测：插件无在途请求需要等待，直接确认即可。
 		return okEnvelope(struct{}{})
-	case "plugin.shutdown":
+	case pluginabi.MethodPluginShutdown:
 		// ABI 已定义该通知方法（宿主当前只调用原生 shutdown 符号），空实现做前向兼容。
 		return okEnvelope(struct{}{})
 	default:
@@ -197,7 +201,7 @@ func handleRegister(request []byte) ([]byte, error) {
 
 func registrationPayload() map[string]any {
 	return map[string]any{
-		"schema_version": 6,
+		"schema_version": pluginSchemaVersion,
 		"metadata": map[string]any{
 			"Name":             "Model Quota (大模型额度与余额查询)",
 			"Version":          pluginVersion,
@@ -380,7 +384,7 @@ func managementJSON(statusCode int, body any) []byte {
 }
 
 func mustEnvelope(result json.RawMessage) []byte {
-	raw, errMarshal := json.Marshal(map[string]any{"ok": true, "result": result})
+	raw, errMarshal := json.Marshal(pluginabi.Envelope{OK: true, Result: result})
 	if errMarshal != nil {
 		return []byte(`{"ok":false,"error":{"code":"marshal_error","message":"marshal failed"}}`)
 	}
@@ -392,14 +396,14 @@ func okEnvelope(result any) ([]byte, error) {
 	if errMarshal != nil {
 		return nil, errMarshal
 	}
-	return json.Marshal(map[string]any{"ok": true, "result": json.RawMessage(raw)})
+	return json.Marshal(pluginabi.Envelope{OK: true, Result: json.RawMessage(raw)})
 }
 
 func errorEnvelope(code, message string) []byte {
-	raw, _ := json.Marshal(map[string]any{
-		"ok":    false,
-		"error": map[string]any{"code": code, "message": message},
-	})
+	raw, errMarshal := pluginabi.NewErrorEnvelope(code, message)
+	if errMarshal != nil {
+		return []byte(`{"ok":false,"error":{"code":"marshal_error","message":"marshal failed"}}`)
+	}
 	return raw
 }
 

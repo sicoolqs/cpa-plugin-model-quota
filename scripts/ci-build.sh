@@ -6,7 +6,7 @@ GOOS=$(go env GOHOSTOS)
 
 case "${GITHUB_REF:-}" in
   refs/tags/v*) VERSION=${GITHUB_REF#refs/tags/v} ;;
-  *) VERSION=0.4.2 ;;
+  *) VERSION=0.4.3 ;;
 esac
 
 case $GOOS in

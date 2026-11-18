@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/ZRZ-0805/cpa-plugin-model-quota/internal/balance"
+	"github.com/router-for-me/CLIProxyAPI/v8/sdk/pluginabi"
 )
 
 // hostHTTPRequest 是 host.http.do 的请求体。Headers 值为数组以匹配 http.Header。
@@ -86,19 +87,11 @@ func sendHostHTTP(callHost func(string, []byte) ([]byte, error), request hostHTT
 	if errMarshal != nil {
 		return nil, fmt.Errorf("序列化 host.http.do 请求失败: %w", errMarshal)
 	}
-	resultBytes, errCall := callHost("host.http.do", requestBytes)
+	resultBytes, errCall := callHost(pluginabi.MethodHostHTTPDo, requestBytes)
 	if errCall != nil {
 		return nil, fmt.Errorf("宿主 HTTP 回调失败: %w", errCall)
 	}
-	var envelope struct {
-		OK     bool            `json:"ok"`
-		Result json.RawMessage `json:"result,omitempty"`
-		Error  *struct {
-			Code       string `json:"code"`
-			Message    string `json:"message"`
-			HTTPStatus int    `json:"http_status,omitempty"`
-		} `json:"error,omitempty"`
-	}
+	var envelope pluginabi.Envelope
 	if errUnmarshal := json.Unmarshal(resultBytes, &envelope); errUnmarshal != nil {
 		return nil, fmt.Errorf("解析宿主回调信封失败: %w", errUnmarshal)
 	}
@@ -129,18 +122,19 @@ func openHostHTTPOperation(callHost func(string, []byte) ([]byte, error)) string
 	if errMarshal != nil {
 		return ""
 	}
-	resultBytes, errCall := callHost("host.http.operation_open", requestBytes)
+	resultBytes, errCall := callHost(pluginabi.MethodHostHTTPOperationOpen, requestBytes)
 	if errCall != nil {
 		return ""
 	}
-	var envelope struct {
-		OK     bool                           `json:"ok"`
-		Result *hostHTTPOperationOpenResponse `json:"result,omitempty"`
-	}
-	if errUnmarshal := json.Unmarshal(resultBytes, &envelope); errUnmarshal != nil || !envelope.OK || envelope.Result == nil {
+	var envelope pluginabi.Envelope
+	if errUnmarshal := json.Unmarshal(resultBytes, &envelope); errUnmarshal != nil || !envelope.OK || len(envelope.Result) == 0 {
 		return ""
 	}
-	return strings.TrimSpace(envelope.Result.OperationID)
+	var result hostHTTPOperationOpenResponse
+	if errUnmarshal := json.Unmarshal(envelope.Result, &result); errUnmarshal != nil {
+		return ""
+	}
+	return strings.TrimSpace(result.OperationID)
 }
 
 // cancelHostHTTPOperation 中止一个已申请的操作。失败时静默忽略（请求侧自有兜底）。
@@ -152,7 +146,7 @@ func cancelHostHTTPOperation(callHost func(string, []byte) ([]byte, error), oper
 	if errMarshal != nil {
 		return
 	}
-	_, _ = callHost("host.http.cancel", requestBytes)
+	_, _ = callHost(pluginabi.MethodHostHTTPCancel, requestBytes)
 }
 
 // truncate 截断过长文本用于错误消息。

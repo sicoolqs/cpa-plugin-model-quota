@@ -75,7 +75,7 @@ git push origin main
 
 ## CPA 版本适配与升级检查清单
 
-本插件基于 CLIProxyAPI v8 插件体系（最近合规审计：2026-11-14，基线 `router-for-me/CLIProxyAPI@main` commit `1aaf56b`；历次审计：2026-11-04 `01b24f1`、2026-11-02 `f7331b5`、2026-10-31 `dbb7062`、2026-10-19 `2422c6b` / v8.0.32）。适配新版 CPA 时按本清单重跑合规审计。
+本插件基于 CLIProxyAPI v8 插件体系（最近合规审计：2026-11-18，基线 `v8.0.77` / `a5e8f69`；历次审计：2026-11-14 `1aaf56b`、2026-11-04 `01b24f1`、2026-11-02 `f7331b5`、2026-10-31 `dbb7062`、2026-10-19 `2422c6b` / v8.0.32）。适配新版 CPA 时按本清单重跑合规审计。
 
 ### 关于 `/v0/management` 的「废弃」注记（不要误读）
 
@@ -91,6 +91,7 @@ CPA 仓库 `AGENTS.md` 声称 `/v0/management` 已废弃——那**仅针对内�
 
 ### 升级新版 CPA 时的审计项
 
+0. **SDK 依赖**：本插件依赖 `github.com/router-for-me/CLIProxyAPI/v8`（当前 `v8.0.77`），仅引入 `sdk/pluginabi`。注意 v8.0.77 起该包改用 `github.com/MoeForge/moego/json`（带来一个间接依赖，产物增大 ~0.3MB），其序列化结果经验证与标准库一致。ABI 版本、RPC 方法名、信封结构均取自该包常量，不再手写字符串。升级 CPA 基线时执行 `go get github.com/router-for-me/CLIProxyAPI/v8@<新版本> && go mod tidy`，并用 `sdk_test.go` 的线格式测试确认信封输出未变。
 1. `sdk/pluginabi/types.go`：核对 `ABIVersion`（当前 1）与 `SchemaVersion`（当前 10；本插件声明 6，官方明确保留旧版本语义，`RawManagementResponse` 阈值仍为 6）是否变化；若变化需同步 `main.go` 的 `cliproxy_plugin_init` 与 `registrationPayload`
 2. `internal/pluginhost/loader_*.go`：核对 C ABI 结构体与 `cliproxy_plugin_init` 符号名是否变化
 3. `internal/pluginhost/rpc_schema.go`：核对方法名（`plugin.register` / `management.register` / `management.handle` / `host.http.*`）与 JSON 字段名（rpc 外壳小写 tag、pluginapi 结构体大写无 tag）是否变化
@@ -101,4 +102,12 @@ CPA 仓库 `AGENTS.md` 声称 `/v0/management` 已废弃——那**仅针对内�
 
 - `host.http.do` 的请求体**没有 timeout 字段**，`timeout_ms` 会被宿主静默忽略。真实超时依赖 `host.http.operation_open` + 请求携带 `operation_id` + 超时后 `host.http.cancel`（已在 `hostbridge.go` 实现，旧版宿主自动降级为不可取消请求）
 - `plugin.quiesce` 已显式处理（返回空成功信封）；即使不处理，宿主对含 "unknown method" 的错误信封也仅记 Debug 日志（`host.go` 的 `quiesceUnsupported`）
-- `plugin.shutdown` 常量已加入 ABI（`MethodPluginShutdown`），但宿主（`1aaf56b`）尚无任何调用点，仅调用原生 `cliproxyPluginShutdown` 符号；插件已返回空成功信封做前向兼容
+- `plugin.shutdown` 常量已加入 ABI（`MethodPluginShutdown`），但宿主（`v8.0.77` 复核）仍无任何调用点，仅调用原生 `cliproxyPluginShutdown` 符号；插件已返回空成功信封做前向兼容
+
+### 部署前提：必须使用启用插件的 CPA 构建
+
+官方 `v8.0.77` Release 说明明确：
+
+- 默认 Linux 产物（`CLIProxyAPI_<version>_linux_<arch>.tar.gz`）**支持动态库插件**，且以 **GLIBC 2.17** 为基线编译——与本插件 glibc 2.17 构建目标一致。
+- `_no-plugin` 变体（面向 musl/OpenWrt 等）**不支持动态库插件**；FreeBSD arm64 产物同样不支持。
+- 因此部署前须确认宿主为「支持插件」的 CPA 构建；若宿主是 Alpine/musl 环境，需使用支持插件的 glibc 兼容构建（如官方默认 Linux 产物 + 兼容层），并改用 musl 目标另编插件。

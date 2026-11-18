@@ -10,3 +10,4 @@ bin/
 artifacts/
 .DS_Store
 *.log
+AGENTS.local.md
